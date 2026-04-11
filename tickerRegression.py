@@ -9,9 +9,11 @@ from scipy.stats import pearsonr, spearmanr
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 
-TICKER = "AAPL"
+TICKER = ""
+#AAPL, MSFT, GOOGL, TSLA, PEP, KO, NVDA
+
 START_DATE = "2010-01-01"
-MODEL_OUTPUT = "model_aapl.pkl"
+MODEL_OUTPUT = "model_5_day_regression.pkl"
 
 # We predict 5-day forward return but evaluate daily P&L by spreading the
 # position across 5 days (enter today, exit in 5 days)
@@ -31,7 +33,7 @@ FEATURES = [
     'Days_to_Earnings', 'Days_since_Earnings',
 ]
 
-# ── DOWNLOAD EXTERNAL DATA ────────────────────────────────────────────────────
+# ──────────────── DOWNLOAD EXTERNAL DATA ─────────────────────────────────────────
 
 print("Downloading external data...")
 
@@ -59,7 +61,7 @@ vix_level    = vix_close.rename('vix')
 vix_change   = vix_close.pct_change().rename('vix_chg')
 vix_vs_sma20 = (vix_close / vix_close.rolling(20).mean()).rename('vix_vs_sma20')
 
-print("SPY, XLK, VIX downloaded.")
+print("  SPY, XLK, VIX downloaded.")
 
 # ── EARNINGS DATES ────────────────────────────────────────────────────────────
 
@@ -156,7 +158,7 @@ raw = download(TICKER, START_DATE)
 if raw.empty:
     raise RuntimeError(f"No data returned for {TICKER}.")
 
-print(f" Fetching {TICKER} earnings dates...")
+print(f"  Fetching {TICKER} earnings dates...")
 days_to_earn, days_since_earn = get_earnings_features(TICKER, raw.index)
 
 df = build_features(raw, days_to_earn, days_since_earn)
@@ -210,11 +212,13 @@ print("  Training complete.")
 y_pred_5d = model.predict(X_test)
 actual_5d = y_test.values
 
+
 mae        = mean_absolute_error(actual_5d, y_pred_5d)
 r2         = r2_score(actual_5d, y_pred_5d)
 pearson_r,  p_pearson  = pearsonr(actual_5d, y_pred_5d)
 spearman_r, p_spearman = spearmanr(actual_5d, y_pred_5d)
 direction_accuracy = (np.sign(y_pred_5d) == np.sign(actual_5d)).mean()
+
 
 print(f"\n  MAE:                {mae:.6f}")
 print(f"  R²:                 {r2:.6f}  (>0 = better than predicting the mean)")
@@ -222,12 +226,15 @@ print(f"  Pearson r:          {pearson_r:.4f}  (p={p_pearson:.4f})")
 print(f"  Spearman r:         {spearman_r:.4f}  (p={p_spearman:.4f})")
 print(f"  Direction accuracy: {direction_accuracy:.2%}  (5-day direction correct?)")
 
+
 print(f"\n  Prediction distribution (5-day predicted return):")
 print(pd.Series(y_pred_5d).describe())
+
 
 # Quintile table
 pred_series   = pd.Series(y_pred_5d, index=X_test.index, name='pred')
 actual_series = pd.Series(actual_5d,  index=X_test.index, name='actual')
+
 
 try:
     buckets = pd.qcut(pred_series, q=5, duplicates='drop')
@@ -304,7 +311,7 @@ for threshold in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03]:
         elif mode == 'long_short':
             # Long when pred > threshold, short when pred < -threshold, flat otherwise
             raw_signals = np.where(pred_5d > threshold, 1.0,
-                          np.where(pred_5d < -threshold, -1.0, 0.0))
+                        np.where(pred_5d < -threshold, -1.0, 0.0))
             label = f"t={threshold:.3f} long/short"
 
         else:  # long_sit_short
@@ -312,7 +319,7 @@ for threshold in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03]:
             # Long above threshold, short below -threshold, flat in dead zone
             scaled = np.clip(pred_5d / 0.02, -1.0, 1.0)
             raw_signals = np.where(pred_5d > threshold, scaled,
-                          np.where(pred_5d < -threshold, scaled, 0.0))
+                        np.where(pred_5d < -threshold, scaled, 0.0))
             label = f"t={threshold:.3f} scaled L/S"
 
         position = build_position_series(raw_signals, hold=FORWARD_DAYS)
@@ -348,10 +355,13 @@ print(f"    Final Return: {best_result['equity']:.4f}x  (B&H: {bnh_equity[-1]:.4
 print(f"    Max Drawdown: {best_result['drawdown']:.2%}")
 print(f"    Win Rate:     {best_result['win_rate']:.2%}")
 print(f"    Trades:       {best_result['trades']}")
+
 if best_result['avg_loss'] != 0:
     print(f"    Win/Loss:     {abs(best_result['avg_win'] / best_result['avg_loss']):.2f}")
 
+
 # ── EXPORT ────────────────────────────────────────────────────────────────────
+
 
 # joblib.dump(model, MODEL_OUTPUT)
 # print(f"\nModel saved → {MODEL_OUTPUT}")

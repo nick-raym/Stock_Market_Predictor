@@ -19,26 +19,20 @@ function App() {
           <img src={reactLogo} className="framework" alt="React logo" />
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
+ 
         <div>
           <h1>Stock Market Predictor
           </h1>
         </div>
+
         <div>
           <h3>Choose a stock to predict if the price will go up or down tommorow</h3>
           <input class='input-box'></input>
           <br></br>
           <button class='search-button'>Predict</button>
         </div>
-        {/* <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button> */}
       </section>
-
       <div className="ticks"></div>
-
     </>
   )
 }
