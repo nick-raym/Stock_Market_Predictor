@@ -1,37 +1,45 @@
-
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
-
-import React, { useEffect, useState } from 'react';
-// import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-// import Navbar from './Navbar';
+import React, { useState } from 'react';
 
 function App() {
-  // const [count, setCount] = useState(0)
+  const [activeTicker, setActiveTicker] = useState('AAPL');
 
   return (
     <>
       <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
- 
-        <div>
-          <h1>Stock Market Predictor
-          </h1>
-        </div>
+        <h1 className="text-predictor">Stock Market Predictor</h1>
 
         <div>
-          <h3>Choose a stock to predict if the price will go up or down tommorow</h3>
-          <input class='input-box'></input>
-          <br></br>
-          <button class='search-button'>Predict</button>
+          <h2 className="text-model">Choose a Model</h2>
+
+          <ul className="predictor-options">
+            <button
+              className={`ticker-button ${activeTicker === 'AAPL' ? 'active' : ''}`}
+              onClick={() => setActiveTicker('AAPL')}
+            >
+              APPLE PREDICTOR
+            </button>
+            <button
+              className={`ticker-button ${activeTicker === 'GOOGL' ? 'active' : ''}`}
+              onClick={() => setActiveTicker('GOOGL')}
+            >
+              GOOGLE PREDICTOR
+            </button>
+            <button
+              className={`ticker-button ${activeTicker === 'MARKET' ? 'active' : ''}`}
+              onClick={() => setActiveTicker('MARKET')}
+            >
+              MARKET PREDICTOR
+            </button>
+          </ul>
+
+          <div className="predictor-search">
+            <input className="input-box" placeholder="Enter ticker e.g. AAPL" />
+            <button className="search-button">Predict</button>
+          </div>
         </div>
       </section>
+
       <div className="ticks"></div>
     </>
   )
