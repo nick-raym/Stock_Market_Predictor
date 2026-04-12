@@ -1,5 +1,6 @@
 import './App.css'
 import React, { useState } from 'react';
+import MarketContext from './MarketContext';
 
 function App() {
   const [activeTicker, setActiveTicker] = useState('AAPL');
@@ -34,10 +35,18 @@ function App() {
           </ul>
 
           <div className="predictor-search">
-            <input className="input-box" placeholder="Enter ticker e.g. AAPL" />
+            {activeTicker === 'MARKET' && (
+              <input
+                className="input-box"
+                placeholder="Enter ticker e.g. TSLA"
+              />
+            )}
             <button className="search-button">Predict</button>
           </div>
         </div>
+
+        <MarketContext />
+
       </section>
 
       <div className="ticks"></div>
