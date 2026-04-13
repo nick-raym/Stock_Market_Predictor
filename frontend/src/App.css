@@ -5,8 +5,10 @@
   place-content: center;
   place-items: center;
   flex-grow: 1;
+}
 
-  @media (max-width: 1024px) {
+@media (max-width: 1024px) {
+  #center {
     padding: 32px 20px 24px;
     gap: 18px;
   }
@@ -15,29 +17,30 @@
 .ticks {
   position: relative;
   width: 100%;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+.ticks::before,
+.ticks::after {
+  content: '';
+  position: absolute;
+  top: -4.5px;
+  border: 5px solid transparent;
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
+.ticks::before {
+  left: 0;
+  border-left-color: var(--border);
+}
 
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+.ticks::after {
+  right: 0;
+  border-right-color: var(--border);
 }
 
 .text-predictor {
   font-size: 55px;
   font-weight: 50;
+  margin-bottom: 80px;
 }
 
 .text-model {
@@ -45,6 +48,10 @@
   font-size: 20px;
   font-weight: 400;
   text-align: center;
+}
+
+.predictor-box{
+  margin-bottom:30px;
 }
 
 .predictor-options {
@@ -144,6 +151,69 @@
   background: #cccccc;
 }
 
+.search-button--wide {
+  width: 50%;
+}
+
+
+.prediction-display {
+  margin-top: 50px;
+  display: flex;
+  justify-content: center;
+}
+
+
+.prediction {
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-left: -18px;
+  padding: 16px;
+  max-width: 400px;
+  width: 100%;
+  text-align: left;
+  box-align: center;
+}
+
+.prediction-header {
+  font-size: 18px;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.prediction-details p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.prediction-details strong {
+  color: #fff;
+  font-weight: 500;
+}
+
+.refresh-button {
+  background: #ffffff;
+  color: #0d0d0d;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: background 0.15s;
+  display: block;
+  width: 100%;
+}
+
+.refresh-button:hover {
+  background: #e0e0e0;
+}
 
 
 .mc-wrap {

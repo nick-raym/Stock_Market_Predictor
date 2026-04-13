@@ -247,12 +247,6 @@ print(f"\n  Feature Importances:")
 print(importance_df.to_string(index=False))
 
 # ── TRADING SIMULATION ────────────────────────────────────────────────────────
-# We predict the 5-day return, but simulate daily P&L using actual 1-day returns.
-# Each signal is held for 5 trading days — overlapping positions are averaged.
-# Three modes per threshold:
-#   LONG only    — buy when pred > +threshold, else flat
-#   LONG/SHORT   — buy when pred > +threshold, short when pred < -threshold, else flat
-#   LONG/SIT/SHORT — buy above threshold, short below -threshold, flat in between
 
 print("\n" + "=" * 60)
 print("PHASE 3: Trading Simulation (5-day signal → daily P&L)")
@@ -270,11 +264,6 @@ n             = len(daily_returns)
 # Build a daily position array from 5-day signals.
 # Each day's signal applies to the next 5 days of daily returns.
 def build_position_series(signals_raw, hold=5):
-    """
-    Given a raw signal array (float, one per day), spread each signal
-    over the next `hold` days. Overlapping signals are averaged.
-    Returns a daily position array of the same length.
-    """
     positions = np.zeros(n)
     counts    = np.zeros(n)
     for i, sig in enumerate(signals_raw):
@@ -304,7 +293,7 @@ for threshold in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03]:
         elif mode == 'long_short':
             # Long when pred > threshold, short when pred < -threshold, flat otherwise
             raw_signals = np.where(pred_5d > threshold, 1.0,
-                          np.where(pred_5d < -threshold, -1.0, 0.0))
+                        np.where(pred_5d < -threshold, -1.0, 0.0))
             label = f"t={threshold:.3f} long/short"
 
         else:  # long_sit_short
@@ -312,7 +301,7 @@ for threshold in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03]:
             # Long above threshold, short below -threshold, flat in dead zone
             scaled = np.clip(pred_5d / 0.02, -1.0, 1.0)
             raw_signals = np.where(pred_5d > threshold, scaled,
-                          np.where(pred_5d < -threshold, scaled, 0.0))
+                        np.where(pred_5d < -threshold, scaled, 0.0))
             label = f"t={threshold:.3f} scaled L/S"
 
         position = build_position_series(raw_signals, hold=FORWARD_DAYS)
@@ -353,6 +342,6 @@ if best_result['avg_loss'] != 0:
 
 # ── EXPORT ────────────────────────────────────────────────────────────────────
 
-# joblib.dump(model, MODEL_OUTPUT)
-# print(f"\nModel saved → {MODEL_OUTPUT}")
-# print("Done.")
+joblib.dump(model, MODEL_OUTPUT)
+print(f"\nModel saved → {MODEL_OUTPUT}")
+print("Done.")

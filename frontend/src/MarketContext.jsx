@@ -6,10 +6,17 @@ export default function MarketContext() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetch('http://localhost:5001/market-context')
-            .then(r => r.json())
+        const host = window.location.hostname || 'localhost';
+        fetch(`http://${host}:5001/market-context`)
+            .then(async r => {
+                const json = await r.json();
+                if (!r.ok) {
+                    throw new Error(json.error || 'Could not load market data.');
+                }
+                return json;
+            })
             .then(d => { setData(d); setLoading(false); })
-            .catch(() => { setError('Could not load market data.'); setLoading(false); });
+            .catch((err) => { setError(err.message || 'Could not load market data.'); setLoading(false); });
     }, []);
 
     if (loading) return <div className="mc-wrap"><div className="mc-header">Loading market data...</div></div>;

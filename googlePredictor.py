@@ -53,6 +53,9 @@ FEATURES = [
     # GOOGL vs its own sector — relative strength
     'GOOGL_vs_XLC',
     'GOOGL_vs_XLK',
+
+    'MSFT_returns', 'MSFT_ret_5',   # AI competition proxy
+    'NVDA_returns', 'NVDA_ret_5',   # AI infrastructure spend
 ]
 
 # ── DOWNLOAD EXTERNAL DATA ────────────────────────────────────────────────────
@@ -70,6 +73,9 @@ xlk_raw  = download("XLK",  START_DATE)
 xlc_raw  = download("XLC",  START_DATE)   # communication services ETF
 meta_raw = download("META", START_DATE)   # ad revenue proxy
 ttd_raw  = download("TTD",  START_DATE)   # programmatic ads proxy
+msft_raw = download("MSFT", START_DATE)
+nvda_raw = download("NVDA", START_DATE)
+
 
 vix_raw = yf.download("^VIX", start=START_DATE, progress=False)
 if isinstance(vix_raw.columns, pd.MultiIndex):
@@ -206,6 +212,11 @@ def build_features(df, days_to_earn, days_since_earn):
     df['GOOGL_vs_XLC'] = df['Return_5'] - df['Sector_XLC_Return'].rolling(5).sum()
     df['GOOGL_vs_XLK'] = df['Return_5'] - df['Sector_XLK_Return'].rolling(5).sum()
 
+    df['MSFT_returns'] = msft_raw['Close'].pct_change().reindex(df.index)
+    df['MSFT_ret_5']    = msft_raw['Close'].pct_change(5).reindex(df.index)
+    df['NVDA_returns'] = nvda_raw['Close'].pct_change().reindex(df.index)
+    df['NVDA_ret_5']    = nvda_raw['Close'].pct_change(5).reindex(df.index)
+
     return df
 
 # ── DOWNLOAD GOOGL & BUILD FEATURES ──────────────────────────────────────────
@@ -229,6 +240,11 @@ df = df.dropna()
 print(f"  {TICKER}: {len(df)} rows")
 print(f"  1d return — Mean: {df['Next_Return_1d'].mean():.4%}  Std: {df['Next_Return_1d'].std():.4%}  % UP: {(df['Next_Return_1d'] > 0).mean():.2%}")
 print(f"  5d return — Mean: {df['Next_Return_5d'].mean():.4%}  Std: {df['Next_Return_5d'].std():.4%}  % UP: {(df['Next_Return_5d'] > 0).mean():.2%}")
+
+missing = [f for f in FEATURES if f not in df.columns]
+if missing:
+    print("Missing features:", missing)
+    raise ValueError("Feature mismatch — fix before training")
 
 # ── TRAIN / TEST SPLIT ────────────────────────────────────────────────────────
 
@@ -346,12 +362,12 @@ for threshold in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03]:
             label = f"t={threshold:.3f} long-only"
         elif mode == 'long_short':
             raw_signals = np.where(pred_5d > threshold, 1.0,
-                          np.where(pred_5d < -threshold, -1.0, 0.0))
+                        np.where(pred_5d < -threshold, -1.0, 0.0))
             label = f"t={threshold:.3f} long/short"
         else:
             scaled = np.clip(pred_5d / 0.02, -1.0, 1.0)
             raw_signals = np.where(pred_5d > threshold, scaled,
-                          np.where(pred_5d < -threshold, scaled, 0.0))
+                        np.where(pred_5d < -threshold, scaled, 0.0))
             label = f"t={threshold:.3f} scaled L/S"
 
         position      = build_position_series(raw_signals, hold=FORWARD_DAYS)
@@ -385,8 +401,10 @@ print(f"    Trades:       {best_result['trades']}")
 if best_result['avg_loss'] != 0:
     print(f"    Win/Loss:     {abs(best_result['avg_win'] / best_result['avg_loss']):.2f}")
 
+print(raw.index[0])  # should be ~2010-01-04
+print(df.index[0])   # if much later, TTD is the culprit
 # ── EXPORT ────────────────────────────────────────────────────────────────────
 
-joblib.dump(model, MODEL_OUTPUT)
-print(f"\nModel saved → {MODEL_OUTPUT}")
-print("Done.")
+# joblib.dump(model, MODEL_OUTPUT)
+# print(f"\nModel saved → {MODEL_OUTPUT}")
+# print("Done.")
