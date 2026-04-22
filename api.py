@@ -9,19 +9,23 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# ── LOAD MODEL ────────────────────────────────────────────────────────────────
+# ── LOAD MODELS ────────────────────────────────────────────────────────────────
 
-MODEL_PATH = "model_aapl.pkl"   # ← fixed: matches what predictor.py saves
+AAPL_MODEL_PATH = "model_aapl.pkl"
+GOOGL_MODEL_PATH = "model_googl.pkl"
 
-if not os.path.exists(MODEL_PATH):
-    raise RuntimeError(f"{MODEL_PATH} not found. Run predictor.py first.")
+if not os.path.exists(AAPL_MODEL_PATH):
+    raise RuntimeError(f"{AAPL_MODEL_PATH} not found. Run predictor.py first.")
+if not os.path.exists(GOOGL_MODEL_PATH):
+    raise RuntimeError(f"{GOOGL_MODEL_PATH} not found. Run googlePredictor.py first.")
 
-model = joblib.load(MODEL_PATH)
-print("Model loaded.")
+aapl_model = joblib.load(AAPL_MODEL_PATH)
+googl_model = joblib.load(GOOGL_MODEL_PATH)
+print("Models loaded: AAPL, GOOGL")
 
-# ── MUST MATCH predictor.py EXACTLY ──────────────────────────────────────────
+# ── AAPL FEATURES (matches predictor.py) ─────────────────────────────────────
 
-FEATURES = [
+AAPL_FEATURES = [
     'SMA_Ratio', 'Price_vs_SMA10', 'Price_vs_SMA50',
     'RSI',
     'Return_1', 'Return_5', 'Return_10', 'Return_20',
@@ -32,6 +36,49 @@ FEATURES = [
     'Market_Return', 'Market_Return_5', 'Market_vs_SMA20',
     'Sector_Return', 'Sector_vs_Market',
     'VIX_Level', 'VIX_Change', 'VIX_vs_SMA20',
+    'Days_to_Earnings', 'Days_since_Earnings',
+]
+
+# ── GOOGL FEATURES (matches googlePredictor.py) ─────────────────────────────
+
+GOOGL_FEATURES = [
+    # Price / trend
+    'SMA_Ratio', 'Price_vs_SMA10', 'Price_vs_SMA50',
+
+    # Momentum — short, medium, long
+    'RSI',
+    'Return_1', 'Return_5', 'Return_10', 'Return_20',
+    'Momentum_3', 'Momentum_10', 'Momentum_20',
+
+    # Volatility
+    'Volatility_10', 'Volatility_20', 'Volatility_Ratio',
+
+    # Volume
+    'Volume_Change', 'Volume_SMA_Ratio', 'Trend_Strength',
+
+    # Broad market
+    'Market_Return', 'Market_Return_5', 'Market_vs_SMA20',
+
+    # Dual sector (GOOGL lives in both XLK and XLC)
+    'Sector_XLK_Return', 'Sector_XLC_Return',
+    'XLK_vs_Market', 'XLC_vs_Market', 'XLC_vs_XLK',
+
+    # Ad revenue proxy (META only)
+    'Meta_Return', 'Meta_Return_5',
+
+    # AI competition proxies
+    'MSFT_Return', 'MSFT_Return_5',
+    'NVDA_Return', 'NVDA_Return_5',
+
+    # GOOGL vs competitors — relative strength
+    'GOOGL_vs_MSFT',
+    'GOOGL_vs_XLC',
+    'GOOGL_vs_XLK',
+
+    # Macro / fear
+    'VIX_Level', 'VIX_Change', 'VIX_vs_SMA20',
+
+    # Earnings proximity
     'Days_to_Earnings', 'Days_since_Earnings',
 ]
 
@@ -88,8 +135,13 @@ def get_earnings_features(ticker, index):
         return neutral.rename('Days_to_Earnings'), neutral.rename('Days_since_Earnings')
 
 
-def build_features(ticker_df, spy_df, xlk_df, vix_df, ticker):
-    """Build the same features as predictor.py."""
+def safe_reindex(series, index):
+    """Reindex and fill NaN with 0 — safe for tickers with partial history."""
+    return series.reindex(index).fillna(0)
+
+
+def build_features_aapl(ticker_df, spy_df, xlk_df, vix_df, ticker):
+    """Build features for AAPL (matches predictor.py)."""
     df = ticker_df.copy()
 
     # ── price features ────────────────────────────────────────────────────────
@@ -105,8 +157,8 @@ def build_features(ticker_df, spy_df, xlk_df, vix_df, ticker):
     df['Return_10']   = df['Close'].pct_change(10)
     df['Return_20']   = df['Close'].pct_change(20)
     df['Momentum_3']  = df['Close'].pct_change(3)
-    df['Momentum_10'] = df['Close'].pct_change(10)   # same as Return_10 — kept to match training
-    df['Momentum_20'] = df['Close'].pct_change(20)   # same as Return_20 — kept to match training
+    df['Momentum_10'] = df['Close'].pct_change(10)
+    df['Momentum_20'] = df['Close'].pct_change(20)
 
     daily_ret              = df['Close'].pct_change()
     df['Volatility_10']    = daily_ret.rolling(10).std()
@@ -140,7 +192,97 @@ def build_features(ticker_df, spy_df, xlk_df, vix_df, ticker):
     df['Days_to_Earnings']    = days_to.reindex(df.index)
     df['Days_since_Earnings'] = days_since.reindex(df.index)
 
-    return df.dropna(subset=FEATURES)
+    return df.dropna(subset=AAPL_FEATURES)
+
+
+def build_features_googl(ticker_df, spy_df, xlk_df, xlc_df, meta_df, msft_df, nvda_df, vix_df, ticker):
+    """Build features for GOOGL (matches googlePredictor.py)."""
+    df = ticker_df.copy()
+
+    # ── price features ────────────────────────────────────────────────────────
+    df['SMA_10']         = df['Close'].rolling(10).mean()
+    df['SMA_50']         = df['Close'].rolling(50).mean()
+    df['SMA_Ratio']      = df['SMA_10'] / df['SMA_50']
+    df['Price_vs_SMA10'] = df['Close'] / df['SMA_10']
+    df['Price_vs_SMA50'] = df['Close'] / df['SMA_50']
+
+    df['RSI']         = compute_rsi(df['Close'])
+    df['Return_1']    = df['Close'].pct_change(1)
+    df['Return_5']    = df['Close'].pct_change(5)
+    df['Return_10']   = df['Close'].pct_change(10)
+    df['Return_20']   = df['Close'].pct_change(20)
+
+    df['Momentum_3']  = df['Close'].pct_change(3)
+    df['Momentum_10'] = df['Close'].pct_change(10)
+    df['Momentum_20'] = df['Close'].pct_change(20)
+
+    daily_ret              = df['Close'].pct_change()
+    df['Volatility_10']    = daily_ret.rolling(10).std()
+    df['Volatility_20']    = daily_ret.rolling(20).std()
+    df['Volatility_Ratio'] = df['Volatility_10'] / (df['Volatility_20'] + 1e-9)
+
+    df['Volume_Change']    = df['Volume'].pct_change()
+    df['Volume_SMA_Ratio'] = df['Volume'] / df['Volume'].rolling(10).mean()
+    df['Trend_Strength']   = abs(df['Return_5']) / (df['Volatility_10'] + 1e-9)
+
+    # ── market ────────────────────────────────────────────────────────────────
+    spy_ret      = spy_df['Close'].pct_change()
+    spy_ret5     = spy_df['Close'].pct_change(5)
+    spy_vs_sma20 = spy_df['Close'] / spy_df['Close'].rolling(20).mean()
+
+    df['Market_Return']   = safe_reindex(spy_ret, df.index)
+    df['Market_Return_5'] = safe_reindex(spy_ret5, df.index)
+    df['Market_vs_SMA20'] = safe_reindex(spy_vs_sma20, df.index)
+
+    # ── Sector (XLK + XLC) ────────────────────────────────────────────────────
+    xlk_ret = xlk_df['Close'].pct_change()
+    xlc_ret = xlc_df['Close'].pct_change()
+
+    df['Sector_XLK_Return'] = safe_reindex(xlk_ret, df.index)
+    df['Sector_XLC_Return'] = safe_reindex(xlc_ret, df.index)
+
+    df['XLK_vs_Market']     = df['Sector_XLK_Return'] - df['Market_Return']
+    df['XLC_vs_Market']     = df['Sector_XLC_Return'] - df['Market_Return']
+    df['XLC_vs_XLK']        = df['Sector_XLC_Return'] - df['Sector_XLK_Return']
+
+    # ── Ad revenue proxy (META) ────────────────────────────────────────────────
+    meta_ret   = meta_df['Close'].pct_change()
+    meta_ret5  = meta_df['Close'].pct_change(5)
+
+    df['Meta_Return']   = safe_reindex(meta_ret, df.index)
+    df['Meta_Return_5'] = safe_reindex(meta_ret5, df.index)
+
+    # ── AI competition (MSFT, NVDA) ───────────────────────────────────────────
+    msft_ret   = msft_df['Close'].pct_change()
+    msft_ret5  = msft_df['Close'].pct_change(5)
+    nvda_ret   = nvda_df['Close'].pct_change()
+    nvda_ret5  = nvda_df['Close'].pct_change(5)
+
+    df['MSFT_Return']   = safe_reindex(msft_ret, df.index)
+    df['MSFT_Return_5'] = safe_reindex(msft_ret5, df.index)
+    df['NVDA_Return']   = safe_reindex(nvda_ret, df.index)
+    df['NVDA_Return_5'] = safe_reindex(nvda_ret5, df.index)
+
+    # ── GOOGL relative strength vs competitors ────────────────────────────────
+    df['GOOGL_vs_MSFT'] = df['Return_5'] - safe_reindex(msft_ret5, df.index)
+    df['GOOGL_vs_XLC']  = df['Return_5'] - safe_reindex(xlc_ret.rolling(5).sum(), df.index)
+    df['GOOGL_vs_XLK']  = df['Return_5'] - safe_reindex(xlk_ret.rolling(5).sum(), df.index)
+
+    # ── VIX ───────────────────────────────────────────────────────────────────
+    vix          = vix_df['Close']
+    vix_chg      = vix.pct_change()
+    vix_vs_sma20 = vix / vix.rolling(20).mean()
+
+    df['VIX_Level']    = safe_reindex(vix, df.index)
+    df['VIX_Change']   = safe_reindex(vix_chg, df.index)
+    df['VIX_vs_SMA20'] = safe_reindex(vix_vs_sma20, df.index)
+
+    # ── earnings proximity ────────────────────────────────────────────────────
+    days_to, days_since = get_earnings_features(ticker, df.index)
+    df['Days_to_Earnings']    = days_to.reindex(df.index)
+    df['Days_since_Earnings'] = days_since.reindex(df.index)
+
+    return df.dropna(subset=GOOGL_FEATURES)
 
 
 # ── ROUTES ────────────────────────────────────────────────────────────────────
@@ -151,36 +293,36 @@ def predict():
 
     try:
         # Need 120 days to fill all rolling windows (SMA_50, etc.)
-        aapl_df = download(ticker, period="120d")
-        spy_df  = download("SPY",  period="120d")
-        xlk_df  = download("XLK",  period="120d")
-        vix_df  = yf.download("^VIX", period="120d", interval="1d", progress=False)
+        ticker_df = download(ticker, period="120d")
+        spy_df    = download("SPY",  period="120d")
+        xlk_df    = download("XLK",  period="120d")
+        vix_df    = yf.download("^VIX", period="120d", interval="1d", progress=False)
         if isinstance(vix_df.columns, pd.MultiIndex):
             vix_df.columns = vix_df.columns.get_level_values(0)
 
-        if aapl_df.empty:
+        if ticker_df.empty:
             return jsonify({"error": f"No data for '{ticker}'"}), 404
 
-        df = build_features(aapl_df, spy_df, xlk_df, vix_df, ticker)
+        # Use AAPL features by default (for backward compatibility)
+        df = build_features_aapl(ticker_df, spy_df, xlk_df, vix_df, ticker)
 
         if df.empty:
             return jsonify({"error": "Not enough data to compute features"}), 422
 
-        latest       = df[FEATURES].iloc[-1:]
+        latest       = df[AAPL_FEATURES].iloc[-1:]
         latest_close = float(scalar_value(df['Close'].iloc[-1]))
         latest_date  = str(df.index[-1].date())
 
-        # Model is an XGBRegressor → returns a float (predicted 5-day return)
-        predicted_return = float(scalar_value(model.predict(latest)[0]))
+        predicted_return = float(scalar_value(aapl_model.predict(latest)[0]))
 
         return jsonify({
             "ticker":           ticker,
             "date":             latest_date,
             "current_price":    round(latest_close, 2),
-            "predicted_5d_return": round(predicted_return, 6),   # e.g. 0.0123 = +1.23%
-            "predicted_5d_pct":    round(predicted_return * 100, 3),  # e.g. 1.23
+            "predicted_5d_return": round(predicted_return, 6),
+            "predicted_5d_pct":    round(predicted_return * 100, 3),
             "direction":        "UP" if predicted_return > 0 else "DOWN",
-            "signal_strength":  round(abs(predicted_return) * 100, 3),  # magnitude
+            "signal_strength":  round(abs(predicted_return) * 100, 3),
             "features":         {k: round(float(scalar_value(v)), 6) for k, v in latest.iloc[0].items()},
         })
 
@@ -199,14 +341,47 @@ def aapl_summary():
         if isinstance(vix_df.columns, pd.MultiIndex):
             vix_df.columns = vix_df.columns.get_level_values(0)
 
-        df = build_features(aapl_df, spy_df, xlk_df, vix_df, "AAPL")
-        latest       = df[FEATURES].iloc[-1:]
+        df = build_features_aapl(aapl_df, spy_df, xlk_df, vix_df, "AAPL")
+        latest       = df[AAPL_FEATURES].iloc[-1:]
         latest_close = float(scalar_value(df['Close'].iloc[-1]))
         latest_date  = str(df.index[-1].date())
-        predicted_return = float(scalar_value(model.predict(latest)[0]))
+        predicted_return = float(scalar_value(aapl_model.predict(latest)[0]))
 
         return jsonify({
             "ticker":              "AAPL",
+            "date":                latest_date,
+            "current_price":       round(latest_close, 2),
+            "predicted_5d_return": round(predicted_return, 6),
+            "predicted_5d_pct":    round(predicted_return * 100, 3),
+            "direction":           "UP" if predicted_return > 0 else "DOWN",
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/googl", methods=["GET"])
+def googl_summary():
+    """GOOGL prediction using GOOGL-specific features and model."""
+    try:
+        googl_df = download("GOOGL", period="120d")
+        spy_df   = download("SPY",   period="120d")
+        xlk_df   = download("XLK",   period="120d")
+        xlc_df   = download("XLC",   period="120d")
+        meta_df  = download("META",  period="120d")
+        msft_df  = download("MSFT",  period="120d")
+        nvda_df  = download("NVDA",  period="120d")
+        vix_df   = yf.download("^VIX", period="120d", interval="1d", progress=False)
+        if isinstance(vix_df.columns, pd.MultiIndex):
+            vix_df.columns = vix_df.columns.get_level_values(0)
+
+        df = build_features_googl(googl_df, spy_df, xlk_df, xlc_df, meta_df, msft_df, nvda_df, vix_df, "GOOGL")
+        latest       = df[GOOGL_FEATURES].iloc[-1:]
+        latest_close = float(scalar_value(df['Close'].iloc[-1]))
+        latest_date  = str(df.index[-1].date())
+        predicted_return = float(scalar_value(googl_model.predict(latest)[0]))
+
+        return jsonify({
+            "ticker":              "GOOGL",
             "date":                latest_date,
             "current_price":       round(latest_close, 2),
             "predicted_5d_return": round(predicted_return, 6),
@@ -259,7 +434,13 @@ def market_context():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "model": "XGBRegressor", "target": "5d_forward_return"})
+    return jsonify({
+        "status": "ok",
+        "models": {
+            "AAPL": {"path": AAPL_MODEL_PATH, "target": "5d_forward_return"},
+            "GOOGL": {"path": GOOGL_MODEL_PATH, "target": "5d_forward_return"},
+        }
+    })
 
 
 # ── RUN ───────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, forwardRef, useImperativeHandle } from "react";
 
-const AAPL = forwardRef((props, ref) => {
+const GOOGL = forwardRef((props, ref) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -8,10 +8,10 @@ const AAPL = forwardRef((props, ref) => {
     const fetchData = useCallback(() => {
         setLoading(true);
         const host = window.location.hostname || 'localhost';
-        fetch(`http://${host}:5001/aapl`)
+        fetch(`http://${host}:5001/googl`)
             .then(r => r.json())
             .then(d => { setData(d); setLoading(false); })
-            .catch(() => { setError('Could not load AAPL prediction.'); setLoading(false); });
+            .catch(() => { setError('Could not load GOOGL prediction.'); setLoading(false); });
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -19,13 +19,12 @@ const AAPL = forwardRef((props, ref) => {
     }));
 
     return(
-        
         <div> 
-            {loading && <div className="prediction">Loading AAPL prediction...</div>}
+            {loading && <div className="prediction">Loading GOOGL prediction...</div>}
             {error && <div className="prediction" style={{ color: '#f87171' }}>{error}</div>}
             {data && (
                 <div className="prediction">
-                    <div className="prediction-header">AAPL Prediction</div>
+                    <div className="prediction-header">GOOGL Prediction</div>
                     <div className="prediction-details">
                         <p><strong>Ticker:</strong> {data.ticker}</p>
                         <p><strong>Date:</strong> {data.date}</p>
@@ -42,4 +41,4 @@ const AAPL = forwardRef((props, ref) => {
     )
 });
 
-export default AAPL;
+export default GOOGL;
